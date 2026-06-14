@@ -5,9 +5,9 @@ from sqlalchemy import create_engine, Column, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from pydantic import BaseModel
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 from uuid import uuid4
 from datetime import datetime, timedelta
+import bcrypt
 import os
 import requests
 
@@ -25,7 +25,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 app = FastAPI()
@@ -74,8 +73,11 @@ Base.metadata.create_all(bind=engine)
 # UTILS
 # =====================
 
-def hash_password(p): return pwd_context.hash(p)
-def verify_password(p, h): return pwd_context.verify(p, h)
+def hash_password(p: str) -> str:
+    return bcrypt.hashpw(p.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(p: str, h: str) -> bool:
+    return bcrypt.checkpw(p.encode(), h.encode())
 
 def create_token(user_id: str):
     return jwt.encode(
@@ -100,17 +102,13 @@ def get_user(token: HTTPAuthorizationCredentials = Depends(security)):
 
 
 # =====================
-# AUTH DTO
+# DTO
 # =====================
 
 class AuthDTO(BaseModel):
     username: str
     password: str
 
-
-# =====================
-# REQUEST DTO
-# =====================
 
 class RequestDTO(BaseModel):
     name: str
@@ -125,7 +123,6 @@ class RequestDTO(BaseModel):
 @app.post("/auth/register")
 def register(data: AuthDTO):
     db = SessionLocal()
-
     try:
         exists = db.query(User).filter(User.username == data.username).first()
         if exists:
@@ -141,7 +138,6 @@ def register(data: AuthDTO):
         db.commit()
 
         return {"ok": True}
-
     finally:
         db.close()
 
@@ -149,17 +145,13 @@ def register(data: AuthDTO):
 @app.post("/auth/login")
 def login(data: AuthDTO):
     db = SessionLocal()
-
     try:
         user = db.query(User).filter(User.username == data.username).first()
 
         if not user or not verify_password(data.password, user.password):
             raise HTTPException(400, "Invalid credentials")
 
-        return {
-            "token": create_token(user.id)
-        }
-
+        return {"token": create_token(user.id)}
     finally:
         db.close()
 
@@ -176,7 +168,6 @@ def me(user_id=Depends(get_user)):
 @app.post("/requests")
 def create_request(data: RequestDTO):
     db = SessionLocal()
-
     try:
         req = Request(
             id=str(uuid4()),
@@ -189,7 +180,6 @@ def create_request(data: RequestDTO):
         db.commit()
 
         return {"ok": True}
-
     finally:
         db.close()
 
@@ -197,10 +187,8 @@ def create_request(data: RequestDTO):
 @app.get("/requests")
 def get_requests():
     db = SessionLocal()
-
     try:
         return db.query(Request).all()
-
     finally:
         db.close()
 
@@ -211,7 +199,6 @@ def get_requests():
 
 def upload_to_yandex(file: UploadFile):
     headers = {"Authorization": f"OAuth {YANDEX_TOKEN}"}
-
     filename = f"{uuid4()}_{file.filename}"
 
     r = requests.get(
@@ -221,7 +208,6 @@ def upload_to_yandex(file: UploadFile):
     )
 
     upload_url = r.json()["href"]
-
     requests.put(upload_url, files={"file": file.file})
 
     requests.put(
@@ -246,7 +232,6 @@ def upload_to_yandex(file: UploadFile):
 @app.post("/cards/upload")
 def upload_card(file: UploadFile = File(...)):
     db = SessionLocal()
-
     try:
         url = upload_to_yandex(file)
 
@@ -259,7 +244,6 @@ def upload_card(file: UploadFile = File(...)):
         db.commit()
 
         return {"image_url": url}
-
     finally:
         db.close()
 
@@ -267,10 +251,8 @@ def upload_card(file: UploadFile = File(...)):
 @app.get("/cards")
 def get_cards():
     db = SessionLocal()
-
     try:
         return db.query(Jewelry).all()
-
     finally:
         db.close()
 
