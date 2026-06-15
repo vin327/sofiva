@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -35,6 +35,7 @@ class Request(Base):
     name = Column(String)
     phone = Column(String)
     comment = Column(Text)
+    status = Column(String, default="new")
 
 
 class Jewelry(Base):
@@ -56,6 +57,10 @@ class RequestDTO(BaseModel):
     comment: str | None = None
 
 
+class RequestStatusDTO(BaseModel):
+    status: str
+
+
 # =====================
 # REQUESTS
 # =====================
@@ -68,11 +73,11 @@ def create_request(data: RequestDTO):
             id=str(uuid4()),
             name=data.name,
             phone=data.phone,
-            comment=data.comment
+            comment=data.comment,
+            status="new"
         )
         db.add(req)
         db.commit()
-
         return {"ok": True}
     finally:
         db.close()
@@ -83,6 +88,37 @@ def get_requests():
     db = SessionLocal()
     try:
         return db.query(Request).all()
+    finally:
+        db.close()
+
+
+@app.patch("/requests/{request_id}/status")
+def update_request_status(request_id: str, data: RequestStatusDTO):
+    allowed = ["new", "in_progress", "done"]
+    if data.status not in allowed:
+        raise HTTPException(400, f"Status must be one of: {allowed}")
+    db = SessionLocal()
+    try:
+        req = db.query(Request).filter(Request.id == request_id).first()
+        if not req:
+            raise HTTPException(404, "Not found")
+        req.status = data.status
+        db.commit()
+        return {"ok": True}
+    finally:
+        db.close()
+
+
+@app.delete("/requests/{request_id}")
+def delete_request(request_id: str):
+    db = SessionLocal()
+    try:
+        req = db.query(Request).filter(Request.id == request_id).first()
+        if not req:
+            raise HTTPException(404, "Not found")
+        db.delete(req)
+        db.commit()
+        return {"ok": True}
     finally:
         db.close()
 
@@ -128,14 +164,12 @@ def upload_card(file: UploadFile = File(...)):
     db = SessionLocal()
     try:
         url = upload_to_yandex(file)
-
         card = Jewelry(
             id=str(uuid4()),
             image_url=url
         )
         db.add(card)
         db.commit()
-
         return {"image_url": url}
     finally:
         db.close()
