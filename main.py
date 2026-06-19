@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, Column, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from pydantic import BaseModel
@@ -12,7 +13,23 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
+ALLOWED_IPS = {"95.27.149.212"}
+
 app = FastAPI()
+
+# =====================
+# IP WHITELIST для /docs
+# =====================
+
+@app.middleware("http")
+async def ip_whitelist(request: Request, call_next):
+    protected = {"/docs", "/redoc", "/openapi.json"}
+    if request.url.path in protected:
+        client_ip = request.client.host
+        if client_ip not in ALLOWED_IPS:
+            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
