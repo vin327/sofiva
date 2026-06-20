@@ -13,18 +13,53 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
-ALLOWED_IPS = {"95.27.149.212"}
+ALLOWED_IPS = {"твой.ip.адрес"}
+
+# =====================
+# НАСТРОЙКА ДОСТУПА
+# True  = доступен всем
+# False = только по IP
+# =====================
+
+ACCESS = {
+    "POST /requests":                True,
+    "GET /requests":                 False,
+    "PATCH /requests/{id}/status":   False,
+    "DELETE /requests/{id}":         False,
+    "GET /docs":                     False,
+    "GET /redoc":                    False,
+    "GET /openapi.json":             False,
+}
 
 app = FastAPI()
 
 # =====================
-# IP WHITELIST для /docs
+# IP WHITELIST
 # =====================
+
+def match_route(method: str, path: str) -> bool:
+    """Возвращает True если маршрут публичный, False если только по IP"""
+    for route, is_public in ACCESS.items():
+        r_method, r_path = route.split(" ", 1)
+        if method != r_method:
+            continue
+        # точное совпадение
+        if path == r_path:
+            return is_public
+        # совпадение с параметрами вида /requests/{id}/status
+        r_parts = r_path.split("/")
+        p_parts = path.split("/")
+        if len(r_parts) != len(p_parts):
+            continue
+        if all(r == p or r.startswith("{") for r, p in zip(r_parts, p_parts)):
+            return is_public
+    return True  # если маршрут не в списке — публичный
+
 
 @app.middleware("http")
 async def ip_whitelist(request: Request, call_next):
-    protected = {"/docs", "/redoc", "/openapi.json"}
-    if request.url.path in protected:
+    is_public = match_route(request.method, request.url.path)
+    if not is_public:
         client_ip = request.client.host
         if client_ip not in ALLOWED_IPS:
             return JSONResponse(status_code=403, content={"detail": "Forbidden"})
