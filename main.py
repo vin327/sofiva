@@ -126,10 +126,6 @@ Base.metadata.create_all(bind=engine)
 # =====================
 
 async def get_direct_url(filename: str) -> str | None:
-    """
-    Получает прямую ссылку на файл с Яндекс Диска по имени файла.
-    Файл должен лежать в папке YANDEX_DISK_FOLDER.
-    """
     path = f"{YANDEX_DISK_FOLDER}/{filename}"
     url = "https://cloud-api.yandex.net/v1/disk/resources/download"
 
@@ -147,7 +143,6 @@ async def get_direct_url(filename: str) -> str | None:
 
 
 async def resolve_photos(product: Product) -> list[str]:
-    """Резолвит имена файлов в прямые ссылки, пропускает None."""
     filenames = [product.photo_1, product.photo_2, product.photo_3, product.photo_4]
     urls = []
     for filename in filenames:
@@ -194,7 +189,7 @@ class RequestStatusDTO(BaseModel):
 class ProductCreateDTO(BaseModel):
     name: str
     material: str
-    size: str
+    size: list[float]
     weight: float
     price: float
 
@@ -212,7 +207,7 @@ class ProductCreateDTO(BaseModel):
 class ProductUpdateDTO(BaseModel):
     name: Optional[str] = None
     material: Optional[str] = None
-    size: Optional[str] = None
+    size: Optional[list[float]] = None
     weight: Optional[float] = None
     price: Optional[float] = None
 
