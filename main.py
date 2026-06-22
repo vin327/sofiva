@@ -101,6 +101,8 @@ class Product(Base):
 
     id         = Column(String, primary_key=True)
     name       = Column(String, nullable=False)
+    category   = Column(String, nullable=False)
+    brand      = Column(String, nullable=False)
     material   = Column(String, nullable=False)
     size       = Column(ARRAY(Float), nullable=False)
     weight     = Column(Float, nullable=False)
@@ -159,6 +161,8 @@ async def product_to_dict(p: Product) -> dict:
     return {
         "id": p.id,
         "name": p.name,
+        "category": p.category,
+        "brand": p.brand,
         "material": p.material,
         "size": p.size,
         "weight": p.weight,
@@ -188,6 +192,8 @@ class RequestStatusDTO(BaseModel):
 
 class ProductCreateDTO(BaseModel):
     name: str
+    category: str
+    brand: str
     material: str
     size: list[float]
     weight: float
@@ -206,6 +212,8 @@ class ProductCreateDTO(BaseModel):
 
 class ProductUpdateDTO(BaseModel):
     name: Optional[str] = None
+    category: Optional[str] = None
+    brand: Optional[str] = None
     material: Optional[str] = None
     size: Optional[list[float]] = None
     weight: Optional[float] = None
